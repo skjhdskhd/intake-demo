@@ -51,32 +51,56 @@ function scoreLeadFromData(data: LeadData): LeadScore {
   return "COLD";
 }
 
-function getScoreColor(score: LeadScore): string {
+interface BadgeStyle {
+  background: string;
+  color: string;
+}
+
+function getBadgeStyle(score: LeadScore): BadgeStyle {
   switch (score) {
     case "HOT":
-      return "#dc2626";
+      return { background: "#e8f5e9", color: "#2e7d32" };
     case "WARM":
-      return "#d97706";
+      return { background: "#fff8e6", color: "#b8860b" };
     case "COLD":
-      return "#2563eb";
+      return { background: "#f5f5f5", color: "#666" };
+  }
+}
+
+function getLabel(score: LeadScore): string {
+  switch (score) {
+    case "HOT":
+      return "Ready to Move";
+    case "WARM":
+      return "Actively Searching";
+    case "COLD":
+      return "Early Research";
   }
 }
 
 function getRecommendedAction(score: LeadScore): string {
   switch (score) {
     case "HOT":
-      return "📞 Call within 24 hours — this buyer is ready to move.";
+      return "Follow up within the hour. This client has a clear budget, defined timeline, and financing in place.";
     case "WARM":
-      return "📬 Follow up within 48 hours. Consider offering pre-approval resources or a free consultation.";
+      return "Reach out within 24 hours. Client is engaged but may benefit from pre-approval guidance or a tighter shortlist.";
     case "COLD":
-      return "📋 Add to nurture sequence and follow up in 7 days. Keep them warm with listings and market updates.";
+      return "Add to your follow-up sequence. Send a personal note within the week — this buyer is still forming their criteria.";
   }
 }
 
 function buildEmailHtml(data: LeadData, score: LeadScore): string {
-  const scoreColor = getScoreColor(score);
+  const badge = getBadgeStyle(score);
+  const label = getLabel(score);
   const action = getRecommendedAction(score);
-  const scoreEmoji = score === "HOT" ? "🔥" : score === "WARM" ? "🌤️" : "❄️";
+  const submittedAt = new Date().toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
 
   return `
 <!DOCTYPE html>
@@ -84,64 +108,65 @@ function buildEmailHtml(data: LeadData, score: LeadScore): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>New Lead — Prestige Properties</title>
+  <title>New Client Inquiry — ${data.name} (via Intake)</title>
 </head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-    
-    <!-- Header -->
-    <div style="background:#1e3a5f;padding:28px 32px;text-align:center;">
-      <p style="color:#c9a84c;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin:0 0 8px 0;">Prestige Properties</p>
-      <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:700;">New Intake Lead</h1>
-    </div>
+<body style="margin:0;padding:24px 0;background:#f4f4f4;font-family:'Inter',Arial,sans-serif;">
+  <div style="font-family:'Inter',Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
 
-    <!-- Score Badge -->
-    <div style="background:#f8f7f4;border-bottom:1px solid #e5e5e5;padding:20px 32px;text-align:center;">
-      <p style="margin:0 0 8px 0;color:#6b7280;font-size:13px;font-weight:500;">Lead Score</p>
-      <span style="display:inline-block;background:${scoreColor};color:#fff;font-size:18px;font-weight:800;letter-spacing:2px;padding:8px 24px;border-radius:100px;">
-        ${scoreEmoji} ${score}
-      </span>
+    <!-- Header bar -->
+    <div style="background:#0A1628;padding:24px 32px;">
+      <span style="color:#C9A84C;font-size:18px;letter-spacing:0.05em;font-weight:600;">INTAKE</span>
+      <span style="color:rgba(255,255,255,0.4);font-size:13px;margin-left:12px;">Client Inquiry</span>
     </div>
 
     <!-- Body -->
     <div style="padding:32px;">
+      <h2 style="font-size:22px;font-weight:600;margin:0 0 4px;color:#1a1a1a;">${data.name}</h2>
+      <p style="color:#888;font-size:14px;margin:0 0 28px;">Submitted ${submittedAt}</p>
 
-      <!-- Recommended Action -->
-      <div style="background:#f0f9ff;border-left:4px solid ${scoreColor};padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:28px;">
-        <p style="margin:0;font-size:14px;color:#1e3a5f;font-weight:600;">Recommended Action</p>
-        <p style="margin:6px 0 0 0;font-size:14px;color:#374151;">${action}</p>
+      <!-- Priority badge -->
+      <div style="margin-bottom:28px;">
+        <span style="display:inline-block;padding:6px 14px;border-radius:4px;font-size:13px;font-weight:600;letter-spacing:0.04em;background:${badge.background};color:${badge.color};">
+          ${label}
+        </span>
       </div>
 
-      <!-- Lead Details -->
-      <h2 style="color:#1e3a5f;font-size:15px;font-weight:700;margin:0 0 16px 0;text-transform:uppercase;letter-spacing:1px;">Lead Details</h2>
-
-      <table style="width:100%;border-collapse:collapse;">
-        ${[
-          ["Full Name", data.name],
-          ["Budget Range", data.budget],
-          ["Preferred Areas", data.neighborhoods],
-          ["Bedrooms Needed", data.bedrooms],
-          ["Move-in Timeline", data.timeline],
-          ["Pre-Approved", data.preApproved],
-        ]
-          .map(
-            ([label, value]) => `
+      <!-- Details table -->
+      <table style="width:100%;border-collapse:collapse;font-size:15px;">
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:12px 0;color:#888;width:40%;">Budget</td>
+          <td style="padding:12px 0;font-weight:500;">${data.budget}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:12px 0;color:#888;">Neighborhoods</td>
+          <td style="padding:12px 0;font-weight:500;">${data.neighborhoods}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:12px 0;color:#888;">Bedrooms</td>
+          <td style="padding:12px 0;font-weight:500;">${data.bedrooms}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:12px 0;color:#888;">Timeline</td>
+          <td style="padding:12px 0;font-weight:500;">${data.timeline}</td>
+        </tr>
         <tr>
-          <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#6b7280;font-size:13px;font-weight:600;width:40%;vertical-align:top;">${label}</td>
-          <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#111827;font-size:14px;vertical-align:top;">${value}</td>
-        </tr>`
-          )
-          .join("")}
+          <td style="padding:12px 0;color:#888;">Pre-Approved</td>
+          <td style="padding:12px 0;font-weight:500;">${data.preApproved}</td>
+        </tr>
       </table>
+
+      <!-- Recommended action -->
+      <div style="margin-top:28px;padding:16px 20px;background:#f8f8f8;border-left:3px solid #C9A84C;border-radius:0 4px 4px 0;">
+        <p style="font-size:13px;color:#888;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em;">Recommended Action</p>
+        <p style="font-size:15px;color:#1a1a1a;margin:0;">${action}</p>
+      </div>
     </div>
 
     <!-- Footer -->
-    <div style="background:#f8f7f4;border-top:1px solid #e5e5e5;padding:20px 32px;text-align:center;">
-      <p style="margin:0;font-size:12px;color:#9ca3af;">
-        This lead was submitted via the Prestige Properties Intake Widget.<br/>
-        Powered by <strong style="color:#1e3a5f;">Intake</strong> — AI Lead Qualification
-      </p>
+    <div style="padding:20px 32px;border-top:1px solid #f0f0f0;">
+      <p style="font-size:12px;color:#bbb;margin:0;">Sent by Intake · Private client intake for real estate professionals</p>
     </div>
+
   </div>
 </body>
 </html>
@@ -164,9 +189,9 @@ export async function POST(request: NextRequest) {
     const html = buildEmailHtml(data, score);
 
     const { error } = await resend.emails.send({
-      from: "Intake Agent <onboarding@resend.dev>",
+      from: "Intake <onboarding@resend.dev>",
       to: [toEmail],
-      subject: `[${score}] New Lead: ${data.name} — Prestige Properties`,
+      subject: `New Client Inquiry — ${data.name} (via Intake)`,
       html,
     });
 

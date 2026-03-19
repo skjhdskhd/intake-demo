@@ -12,15 +12,15 @@ const playfair = Playfair_Display({
 
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["300", "400", "500", "600"],
   variable: "--font-inter",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Prestige Properties — Luxury Real Estate",
+  title: "Intake — Private Client Intake for Real Estate",
   description:
-    "Find your next home with Prestige Properties. Our AI concierge matches you with a local expert in minutes.",
+    "Intake qualifies your real estate leads automatically. Every serious buyer gets a real conversation.",
 };
 
 export default function RootLayout({
