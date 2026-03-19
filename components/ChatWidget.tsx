@@ -1,199 +1,240 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from 'react';
 
 interface Message {
-  role: "agent" | "user";
-  text: string;
+  role: 'assistant' | 'user';
+  content: string;
 }
-
-interface LeadData {
-  name: string;
-  budget: string;
-  neighborhoods: string;
-  bedrooms: string;
-  timeline: string;
-  preApproved: string;
-}
-
-const QUESTIONS = [
-  "May I start with your full name?",
-  "Great! And what's your approximate budget range? (e.g., $400k–$600k)",
-  "Which neighborhoods or areas are you most interested in?",
-  "How many bedrooms are you looking for?",
-  "What's your ideal move-in timeline? (e.g., within 3 months, 6 months, flexible)",
-  "Are you currently pre-approved for a mortgage? (Yes / No)",
-];
-
-const FIELD_KEYS: (keyof LeadData)[] = [
-  "name",
-  "budget",
-  "neighborhoods",
-  "bedrooms",
-  "timeline",
-  "preApproved",
-];
 
 export default function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [step, setStep] = useState(0);
-  const [lead, setLead] = useState<Partial<LeadData>>({});
-  const [done, setDone] = useState(false);
-  const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Start conversation on mount
   useEffect(() => {
-    // Initial greeting
-    setMessages([
-      {
-        role: "agent",
-        text: `Hi! Welcome to Prestige Properties 👋 I'm here to help match you with your perfect home. ${QUESTIONS[0]}`,
-      },
-    ]);
+    startConversation();
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const submitLead = async (finalLead: LeadData) => {
-    setSending(true);
+  const startConversation = async () => {
+    setIsLoading(true);
     try {
-      await fetch("/api/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalLead),
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [] }),
       });
-    } catch (err) {
-      console.error("Failed to submit lead:", err);
+      const data = await res.json();
+      if (data.message) {
+        setMessages([{ role: 'assistant', content: data.message }]);
+      }
+    } catch (error) {
+      console.error('Failed to start conversation:', error);
+      setMessages([{ role: 'assistant', content: 'Welcome to Prestige Properties. I\'m here to help match you with your perfect home. May I start with your full name?' }]);
     } finally {
-      setSending(false);
+      setIsLoading(false);
     }
   };
 
-  const handleSend = () => {
-    const trimmed = input.trim();
-    if (!trimmed || done) return;
+  const sendMessage = async () => {
+    if (!input.trim() || isLoading || isComplete) return;
 
-    // Add user message
-    const userMessage: Message = { role: "user", text: trimmed };
-    const newMessages = [...messages, userMessage];
+    const userMessage: Message = { role: 'user', content: input.trim() };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInput('');
+    setIsLoading(true);
 
-    // Store answer
-    const fieldKey = FIELD_KEYS[step];
-    const updatedLead = { ...lead, [fieldKey]: trimmed };
-    setLead(updatedLead);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: updatedMessages }),
+      });
+      const data = await res.json();
 
-    const nextStep = step + 1;
+      if (data.error) {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'I apologize, I\'m having trouble connecting. Please try again in a moment.' }]);
+        return;
+      }
 
-    if (nextStep < QUESTIONS.length) {
-      // Next question
-      const agentMessage: Message = {
-        role: "agent",
-        text: QUESTIONS[nextStep],
-      };
-      setMessages([...newMessages, agentMessage]);
-      setStep(nextStep);
-    } else {
-      // All done
-      const name = (updatedLead.name ?? "").split(" ")[0] || "there";
-      const closingMessage: Message = {
-        role: "agent",
-        text: `Thank you ${name}! I've got everything I need. One of our agents will be in touch with you shortly. 🏡`,
-      };
-      setMessages([...newMessages, closingMessage]);
-      setDone(true);
-      submitLead(updatedLead as LeadData);
+      const assistantMessage: Message = { role: 'assistant', content: data.message };
+      setMessages(prev => [...prev, assistantMessage]);
+
+      if (data.intakeComplete && data.intakeData) {
+        setIsComplete(true);
+        // Send to intake API for scoring and email
+        await fetch('/api/intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data.intakeData),
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'I apologize, I\'m having trouble connecting. Please try again in a moment.' }]);
+    } finally {
+      setIsLoading(false);
     }
-
-    setInput("");
-    inputRef.current?.focus();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") handleSend();
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
   return (
-    <div className="flex flex-col bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden w-full max-w-2xl mx-auto">
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '520px',
+      width: '100%',
+      maxWidth: '680px',
+      margin: '0 auto',
+      borderRadius: '16px',
+      overflow: 'hidden',
+      boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+      background: '#fff',
+    }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4" style={{ backgroundColor: "#1e3a5f" }}>
-        <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white text-sm font-bold">
-          PP
-        </div>
+      <div style={{
+        background: '#0A1628',
+        padding: '20px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+      }}>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          background: '#C9A84C',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: 'var(--font-playfair)',
+          color: '#0A1628',
+          fontWeight: 700,
+          fontSize: '16px',
+        }}>P</div>
         <div>
-          <p className="text-white font-semibold text-sm">Prestige Properties</p>
-          <p className="text-blue-200 text-xs">AI Intake Agent · Online now</p>
+          <div style={{ color: '#F8F6F1', fontWeight: 600, fontSize: '15px' }}>Prestige Concierge</div>
+          <div style={{ color: '#C9A84C', fontSize: '12px' }}>
+            {isComplete ? 'Intake complete' : isLoading ? 'Typing...' : 'Online — typically replies instantly'}
+          </div>
         </div>
-        <div className="ml-auto w-2 h-2 rounded-full bg-green-400"></div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3 min-h-[320px] max-h-[420px] bg-gray-50">
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '24px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        background: '#F8F6F1',
+      }}>
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            {msg.role === "agent" && (
-              <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600 mr-2 mt-1 shrink-0">
-                P
-              </div>
-            )}
-            <div
-              className={`max-w-[78%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                msg.role === "agent"
-                  ? "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-tl-sm"
-                  : "text-white rounded-tr-sm"
-              }`}
-              style={
-                msg.role === "user"
-                  ? { backgroundColor: "#1e3a5f" }
-                  : undefined
-              }
-            >
-              {msg.text}
+          <div key={i} style={{
+            display: 'flex',
+            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+          }}>
+            <div style={{
+              maxWidth: '80%',
+              padding: '12px 16px',
+              borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+              background: msg.role === 'user' ? '#0A1628' : '#fff',
+              color: msg.role === 'user' ? '#F8F6F1' : '#0A1628',
+              fontSize: '15px',
+              lineHeight: '1.5',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            }}>
+              {msg.content}
             </div>
           </div>
         ))}
-        {sending && (
-          <div className="flex justify-start">
-            <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600 mr-2 mt-1 shrink-0">
-              P
-            </div>
-            <div className="bg-white border border-gray-100 shadow-sm px-4 py-3 rounded-2xl rounded-tl-sm">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+        {isLoading && messages.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{
+              padding: '12px 20px',
+              borderRadius: '18px 18px 18px 4px',
+              background: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            }}>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', height: '20px' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    background: '#C9A84C',
+                    animation: 'bounce 1.2s infinite',
+                    animationDelay: `${i * 0.2}s`,
+                  }} />
+                ))}
               </div>
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
+      <div style={{
+        padding: '16px 20px',
+        background: '#fff',
+        borderTop: '1px solid #E8E6E1',
+        display: 'flex',
+        gap: '12px',
+        alignItems: 'center',
+      }}>
         <input
-          ref={inputRef}
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={done}
-          placeholder={done ? "Intake complete — we'll be in touch!" : "Type your answer..."}
-          className="flex-1 px-4 py-2.5 rounded-full border border-gray-300 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition disabled:bg-gray-50 disabled:text-gray-400"
+          disabled={isLoading || isComplete}
+          placeholder={isComplete ? 'Chat complete — an agent will be in touch shortly' : 'Type your message...'}
+          style={{
+            flex: 1,
+            padding: '12px 16px',
+            borderRadius: '24px',
+            border: '1px solid #E8E6E1',
+            fontSize: '15px',
+            outline: 'none',
+            background: isComplete ? '#f5f5f5' : '#fff',
+            color: '#0A1628',
+          }}
         />
         <button
-          onClick={handleSend}
-          disabled={done || !input.trim()}
-          className="px-4 py-2.5 rounded-full text-white text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95"
-          style={{ backgroundColor: "#1e3a5f" }}
+          onClick={sendMessage}
+          disabled={isLoading || isComplete || !input.trim()}
+          style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            background: (isLoading || isComplete || !input.trim()) ? '#E8E6E1' : '#C9A84C',
+            border: 'none',
+            cursor: (isLoading || isComplete || !input.trim()) ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.2s',
+            flexShrink: 0,
+          }}
         >
-          Send
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLoading || isComplete || !input.trim() ? '#999' : '#0A1628'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
         </button>
       </div>
     </div>
