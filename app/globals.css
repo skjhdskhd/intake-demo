@@ -1,16 +1,89 @@
 @import "tailwindcss";
 
-:root {
-  --navy: #1e3a5f;
-  --gold: #c9a84c;
-  --gold-light: #e0c06e;
+/* ── Reset & Box-sizing ─────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
+/* ── Brand Custom Properties ────────────────────────── */
+:root {
+  --color-navy:      #0A1628;
+  --color-offwhite:  #F8F6F1;
+  --color-gold:      #C9A84C;
+  --color-gold-dark: #b08d38;
+  --color-gray:      #E8E6E1;
+
+  --font-heading: var(--font-playfair), 'Playfair Display', Georgia, serif;
+  --font-body:    var(--font-inter), 'Inter', system-ui, sans-serif;
+}
+
+/* ── Base ───────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: #1a1a2e;
+  font-family: var(--font-body);
+  color: var(--color-navy);
+  background: #fff;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Navbar scroll transition ───────────────────────── */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 50;
+  background: transparent;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.navbar--scrolled {
+  background: var(--color-navy) !important;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Mobile nav ─────────────────────────────────────── */
+.mobile-menu {
+  display: none;
+  flex-direction: column;
+  background: var(--color-navy);
+  padding: 1rem 1.5rem 1.5rem;
+  gap: 1rem;
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+/* ── Count-up animation ─────────────────────────────── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.stat-number {
+  display: block;
+  animation: none;
+}
+
+.stat-number.counted {
+  animation: countUp 0.4s ease forwards;
+}
+
+/* ── Bounce arrow ───────────────────────────────────── */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(8px); }
+}
+
+.scroll-arrow {
+  animation: bounce 1.6s ease-in-out infinite;
 }
