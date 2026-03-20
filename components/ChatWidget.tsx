@@ -14,7 +14,6 @@ export default function ChatWidget() {
   const [isComplete, setIsComplete] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Start conversation on mount
   useEffect(() => {
     startConversation();
   }, []);
@@ -35,9 +34,8 @@ export default function ChatWidget() {
       if (data.message) {
         setMessages([{ role: 'assistant', content: data.message }]);
       }
-    } catch (error) {
-      console.error('Failed to start conversation:', error);
-      setMessages([{ role: 'assistant', content: 'Welcome to Prestige Properties. I\'m here to help match you with your perfect home. May I start with your full name?' }]);
+    } catch {
+      setMessages([{ role: 'assistant', content: "Hi there. I'm here to learn a bit about what you're looking for before connecting you with an agent. What's your name?" }]);
     } finally {
       setIsLoading(false);
     }
@@ -61,25 +59,22 @@ export default function ChatWidget() {
       const data = await res.json();
 
       if (data.error) {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'I apologize, I\'m having trouble connecting. Please try again in a moment.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong on my end. Give it another try in a moment.' }]);
         return;
       }
 
-      const assistantMessage: Message = { role: 'assistant', content: data.message };
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
 
       if (data.intakeComplete && data.intakeData) {
         setIsComplete(true);
-        // Send to intake API for scoring and email
         await fetch('/api/intake', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data.intakeData),
         });
       }
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'I apologize, I\'m having trouble connecting. Please try again in a moment.' }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong on my end. Give it another try in a moment.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -92,44 +87,47 @@ export default function ChatWidget() {
     }
   };
 
+  const canSend = !isLoading && !isComplete && input.trim().length > 0;
+
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
       height: '520px',
       width: '100%',
-      maxWidth: '680px',
-      margin: '0 auto',
-      borderRadius: '16px',
+      background: '#0F2035',
       overflow: 'hidden',
-      boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
-      background: '#fff',
     }}>
       {/* Header */}
       <div style={{
-        background: '#0A1628',
-        padding: '20px 24px',
+        background: '#0F2035',
+        padding: '18px 24px',
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
+        borderBottom: '1px solid rgba(137,207,240,0.1)',
+        flexShrink: 0,
       }}>
         <div style={{
-          width: '40px',
-          height: '40px',
+          width: '38px',
+          height: '38px',
           borderRadius: '50%',
-          background: '#C9A84C',
+          background: '#89CFF0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontFamily: 'var(--font-playfair)',
-          color: '#0A1628',
+          color: '#0A1A2E',
           fontWeight: 700,
-          fontSize: '16px',
-        }}>P</div>
+          fontSize: '15px',
+          flexShrink: 0,
+          fontFamily: 'Inter, sans-serif',
+        }}>I</div>
         <div>
-          <div style={{ color: '#F8F6F1', fontWeight: 600, fontSize: '15px' }}>Prestige Concierge</div>
-          <div style={{ color: '#C9A84C', fontSize: '12px' }}>
-            {isComplete ? 'Intake complete' : isLoading ? 'Typing...' : 'Online — typically replies instantly'}
+          <div style={{ color: '#FFFFFF', fontWeight: 600, fontSize: '15px', fontFamily: 'Inter, sans-serif' }}>
+            Intake AI
+          </div>
+          <div style={{ color: '#89CFF0', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
+            {isComplete ? 'Conversation complete' : isLoading ? 'Typing...' : 'Online'}
           </div>
         </div>
       </div>
@@ -138,11 +136,11 @@ export default function ChatWidget() {
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '24px',
+        padding: '20px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '16px',
-        background: '#F8F6F1',
+        gap: '14px',
+        background: '#0A1A2E',
       }}>
         {messages.map((msg, i) => (
           <div key={i} style={{
@@ -150,37 +148,43 @@ export default function ChatWidget() {
             justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
           }}>
             <div style={{
-              maxWidth: '80%',
-              padding: '12px 16px',
+              maxWidth: '78%',
+              padding: '11px 16px',
               borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-              background: msg.role === 'user' ? '#0A1628' : '#fff',
-              color: msg.role === 'user' ? '#F8F6F1' : '#0A1628',
+              background: msg.role === 'user' ? '#89CFF0' : '#1a2a3a',
+              color: msg.role === 'user' ? '#0A1A2E' : '#FFFFFF',
               fontSize: '15px',
-              lineHeight: '1.5',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              lineHeight: '1.55',
+              fontFamily: 'Inter, sans-serif',
+              fontWeight: msg.role === 'user' ? 500 : 400,
             }}>
               {msg.content}
             </div>
           </div>
         ))}
+
         {isLoading && messages.length > 0 && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{
-              padding: '12px 20px',
+              padding: '12px 18px',
               borderRadius: '18px 18px 18px 4px',
-              background: '#fff',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              background: '#1a2a3a',
+              display: 'flex',
+              gap: '5px',
+              alignItems: 'center',
+              height: '42px',
             }}>
-              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', height: '20px' }}>
-                {[0, 1, 2].map(i => (
-                  <div key={i} style={{
-                    width: '6px', height: '6px', borderRadius: '50%',
-                    background: '#C9A84C',
-                    animation: 'bounce 1.2s infinite',
-                    animationDelay: `${i * 0.2}s`,
-                  }} />
-                ))}
-              </div>
+              {[0, 1, 2].map(j => (
+                <div key={j} style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: '#89CFF0',
+                  opacity: 0.7,
+                  animation: 'widgetBounce 1.2s ease-in-out infinite',
+                  animationDelay: `${j * 0.18}s`,
+                }} />
+              ))}
             </div>
           </div>
         )}
@@ -189,12 +193,13 @@ export default function ChatWidget() {
 
       {/* Input */}
       <div style={{
-        padding: '16px 20px',
-        background: '#fff',
-        borderTop: '1px solid #E8E6E1',
+        padding: '14px 20px',
+        background: '#0F2035',
+        borderTop: '1px solid rgba(137,207,240,0.2)',
         display: 'flex',
-        gap: '12px',
+        gap: '10px',
         alignItems: 'center',
+        flexShrink: 0,
       }}>
         <input
           type="text"
@@ -202,41 +207,49 @@ export default function ChatWidget() {
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isLoading || isComplete}
-          placeholder={isComplete ? 'Chat complete — an agent will be in touch shortly' : 'Type your message...'}
+          placeholder={isComplete ? 'An agent will be in touch shortly' : 'Type a message...'}
           style={{
             flex: 1,
-            padding: '12px 16px',
+            padding: '11px 16px',
             borderRadius: '24px',
-            border: '1px solid #E8E6E1',
+            border: '1px solid rgba(137,207,240,0.2)',
             fontSize: '15px',
             outline: 'none',
-            background: isComplete ? '#f5f5f5' : '#fff',
-            color: '#0A1628',
+            background: '#0A1A2E',
+            color: '#FFFFFF',
+            fontFamily: 'Inter, sans-serif',
           }}
         />
         <button
           onClick={sendMessage}
-          disabled={isLoading || isComplete || !input.trim()}
+          disabled={!canSend}
           style={{
-            width: '44px',
-            height: '44px',
+            width: '42px',
+            height: '42px',
             borderRadius: '50%',
-            background: (isLoading || isComplete || !input.trim()) ? '#E8E6E1' : '#C9A84C',
+            background: canSend ? '#89CFF0' : 'rgba(137,207,240,0.15)',
             border: 'none',
-            cursor: (isLoading || isComplete || !input.trim()) ? 'not-allowed' : 'pointer',
+            cursor: canSend ? 'pointer' : 'not-allowed',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'background 0.2s',
+            transition: 'background 200ms ease',
             flexShrink: 0,
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLoading || isComplete || !input.trim() ? '#999' : '#0A1628'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={canSend ? '#0A1A2E' : '#4a6a8a'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </button>
       </div>
+
+      <style>{`
+        @keyframes widgetBounce {
+          0%, 80%, 100% { transform: translateY(0); }
+          40% { transform: translateY(-5px); }
+        }
+      `}</style>
     </div>
   );
 }
