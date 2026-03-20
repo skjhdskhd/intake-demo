@@ -1,350 +1,421 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import ChatWidget from "@/components/ChatWidget";
 
-export default function Home() {
+const HouseAnimation = dynamic(() => import("@/components/HouseAnimation"), {
+  ssr: false,
+  loading: () => <div style={{ width: "100%", height: "380px" }} />,
+});
+
+/* ── Count-up hook ────────────────────────────────── */
+function useCountUp(target: number, suffix: string, prefix: string, duration = 2000) {
+  const [display, setDisplay] = useState(`${prefix}0${suffix}`);
+  const ref = useRef<HTMLDivElement>(null);
+  const started = useRef(false);
+
   useEffect(() => {
-    const navbar = document.getElementById("navbar");
-    const handleScroll = () => {
-      if (!navbar) return;
-      if (window.scrollY > 50) {
-        navbar.classList.add("navbar--scrolled");
-      } else {
-        navbar.classList.remove("navbar--scrolled");
-      }
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const start = performance.now();
+          const tick = (now: number) => {
+            const p = Math.min((now - start) / duration, 1);
+            const ease = 1 - Math.pow(1 - p, 3);
+            const val = Math.round(ease * target);
+            setDisplay(`${prefix}${val.toLocaleString()}${suffix}`);
+            if (p < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [target, suffix, prefix, duration]);
+
+  return { ref, display };
+}
+
+/* ── Fade-in hook ─────────────────────────────────── */
+function useFadeIn() {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add("visible");
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return ref;
+}
+
+/* ── Stats item ───────────────────────────────────── */
+function StatItem({ target, suffix, prefix, label }: { target: number; suffix: string; prefix: string; label: string }) {
+  const { ref, display } = useCountUp(target, suffix, prefix);
+  return (
+    <div className="stats__item" ref={ref}>
+      <div className="stats__number">{display}</div>
+      <div className="stats__label">{label}</div>
+    </div>
+  );
+}
+
+/* ── SVG Icons ────────────────────────────────────── */
+const IconBrowser = () => (
+  <svg className="how__icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="8" width="40" height="32" rx="3" />
+    <line x1="4" y1="17" x2="44" y2="17" />
+    <circle cx="11" cy="12.5" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="17" cy="12.5" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="23" cy="12.5" r="1.5" fill="currentColor" stroke="none" />
+    <line x1="14" y1="26" x2="34" y2="26" />
+    <line x1="14" y1="32" x2="28" y2="32" />
+  </svg>
+);
+
+const IconSpark = () => (
+  <svg className="how__icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 32C8 23.163 15.163 16 24 16s16 7.163 16 16" />
+    <path d="M6 38h36" />
+    <path d="M24 10V7" />
+    <path d="M35.3 13.7l2.1-2.1" />
+    <path d="M12.7 13.7l-2.1-2.1" />
+    <path d="M24 22l1.5 3 3.5.5-2.5 2.4.6 3.5L24 29.8l-3.1 1.6.6-3.5L19 25.5l3.5-.5z" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const IconDoc = () => (
+  <svg className="how__icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M28 4H12a3 3 0 0 0-3 3v34a3 3 0 0 0 3 3h24a3 3 0 0 0 3-3V16L28 4z" />
+    <polyline points="28 4 28 16 40 16" />
+    <line x1="16" y1="26" x2="32" y2="26" />
+    <line x1="16" y1="32" x2="26" y2="32" />
+    <polyline points="20 21 17 24 20 27" />
+    <polyline points="28 21 31 24 28 27" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg className="pricing__check" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="7.5" stroke="currentColor" strokeOpacity="0.3" />
+    <polyline points="4.5,8.5 7,11 11.5,6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/* ─────────────────────────────────────────────────────
+   PAGE
+───────────────────────────────────────────────────── */
+export default function Home() {
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  /* Navbar scroll */
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const scrollToChat = (e: React.MouseEvent) => {
+  /* Close menu on resize */
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth > 900) setMenuOpen(false); };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  /* Fade-in refs */
+  const howRef = useFadeIn() as React.RefObject<HTMLElement>;
+  const demoRef = useFadeIn() as React.RefObject<HTMLElement>;
+  const testRef = useFadeIn() as React.RefObject<HTMLElement>;
+  const pricingRef = useFadeIn() as React.RefObject<HTMLElement>;
+  const ctaRef = useFadeIn() as React.RefObject<HTMLElement>;
+
+  function smooth(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
     e.preventDefault();
-    document.getElementById("chat-section")?.scrollIntoView({ behavior: "smooth" });
-  };
+    setMenuOpen(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  }
 
   return (
     <>
-      {/* ── NAVBAR ─────────────────────────────────────────── */}
-      <nav id="navbar" className="navbar">
-        <div
-          style={{
-            maxWidth: "1200px",
-            margin: "0 auto",
-            padding: "0 1.5rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: "72px",
-          }}
-        >
-          {/* Wordmark */}
-          <span
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "1.35rem",
-              fontWeight: 400,
-              color: "#fff",
-              letterSpacing: "0.05em",
-            }}
-          >
-            Intake
-          </span>
+      {/* ── NAVBAR ─────────────────────────────────────── */}
+      <nav className={`navbar ${scrolled ? "navbar--solid" : "navbar--transparent"}`}>
+        <div className="navbar__inner">
+          <a href="#" className="navbar__logo" onClick={e => smooth(e, "hero")}>
+            Intake AI<span className="navbar__logo-dot" />
+          </a>
 
-          {/* Nav right */}
-          <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
-            <a
-              href="#"
-              style={{
-                color: "#fff",
-                textDecoration: "none",
-                fontFamily: "var(--font-body)",
-                fontSize: "14px",
-                fontWeight: 400,
-                opacity: 0.9,
-              }}
-            >
-              For Agents
-            </a>
-            <a
-              href="#chat-section"
-              onClick={scrollToChat}
-              style={{
-                background: "#C9A84C",
-                color: "#0A1628",
-                padding: "0.55rem 1.4rem",
-                borderRadius: "6px",
-                fontFamily: "var(--font-body)",
-                fontSize: "0.875rem",
-                fontWeight: 600,
-                textDecoration: "none",
-                transition: "background 0.2s",
-              }}
-              onMouseEnter={(e) =>
-                ((e.target as HTMLElement).style.background = "#b08d38")
-              }
-              onMouseLeave={(e) =>
-                ((e.target as HTMLElement).style.background = "#C9A84C")
-              }
-            >
-              Get Started
-            </a>
-          </div>
+          <ul className="navbar__links">
+            <li><a href="#how-it-works" onClick={e => smooth(e, "how-it-works")}>How It Works</a></li>
+            <li><a href="#results" onClick={e => smooth(e, "results")}>Results</a></li>
+            <li><a href="#pricing" onClick={e => smooth(e, "pricing")}>Pricing</a></li>
+            <li><a href="#contact" onClick={e => smooth(e, "contact")}>Contact</a></li>
+            <li>
+              <a href="#demo" onClick={e => smooth(e, "demo")} className="navbar__cta">
+                Request Demo
+              </a>
+            </li>
+          </ul>
+
+          <button
+            className={`navbar__hamburger${menuOpen ? " open" : ""}`}
+            aria-label="Toggle menu"
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <span /><span /><span />
+          </button>
         </div>
       </nav>
 
-      {/* ── HERO ───────────────────────────────────────────── */}
-      <section
-        style={{
-          height: "100vh",
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1920&q=80')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {/* Overlay */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(8, 18, 32, 0.5)",
-          }}
-        />
+      {/* Mobile overlay */}
+      <div className={`navbar__mobile-overlay${menuOpen ? " open" : ""}`}>
+        <a href="#how-it-works" onClick={e => smooth(e, "how-it-works")}>How It Works</a>
+        <a href="#results" onClick={e => smooth(e, "results")}>Results</a>
+        <a href="#pricing" onClick={e => smooth(e, "pricing")}>Pricing</a>
+        <a href="#contact" onClick={e => smooth(e, "contact")}>Contact</a>
+        <a href="#demo" onClick={e => smooth(e, "demo")} className="navbar__mobile-cta">Request Demo</a>
+      </div>
 
-        {/* Content */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            textAlign: "center",
-            padding: "0 1.5rem",
-            maxWidth: "800px",
-          }}
-        >
-          <h1
-            className="hero-headline"
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontWeight: 400,
-              color: "#fff",
-              lineHeight: 1.15,
-              marginBottom: "1.5rem",
-            }}
-          >
-            Every Serious Buyer Deserves a Real Conversation
-          </h1>
-          <p
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "19px",
-              fontWeight: 300,
-              color: "#fff",
-              opacity: 0.8,
-              maxWidth: "520px",
-              margin: "0 auto 2.5rem",
-              lineHeight: 1.65,
-            }}
-          >
-            Intake qualifies your leads before they ever reach your inbox — so you spend your time on the ones that matter.
-          </p>
-
-          <a
-            href="#chat-section"
-            onClick={scrollToChat}
-            style={{
-              display: "inline-block",
-              background: "#C9A84C",
-              color: "#0A1628",
-              padding: "0.9rem 2.25rem",
-              borderRadius: "6px",
-              fontFamily: "var(--font-body)",
-              fontSize: "1rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              transition: "background 0.2s",
-            }}
-            onMouseEnter={(e) =>
-              ((e.target as HTMLElement).style.background = "#b08d38")
-            }
-            onMouseLeave={(e) =>
-              ((e.target as HTMLElement).style.background = "#C9A84C")
-            }
-          >
-            Start a Conversation
-          </a>
-        </div>
-      </section>
-
-      {/* ── VALUE SECTION ──────────────────────────────────── */}
-      <section
-        style={{
-          background: "#fff",
-          padding: "80px 1.5rem",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "700px",
-            margin: "0 auto",
-            textAlign: "center",
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "18px",
-              lineHeight: 1.8,
-              color: "#333",
-              marginBottom: "1.5rem",
-            }}
-          >
-            Most leads go cold not because buyers aren&rsquo;t serious — but because no one followed up fast enough, or asked the right questions. Intake changes that.
-          </p>
-          <p
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "18px",
-              lineHeight: 1.8,
-              color: "#333",
-            }}
-          >
-            A short, intelligent conversation collects what your team needs to know. Budget, timeline, financing status, neighborhood preferences. Then it routes a clean brief to the right agent, instantly.
-          </p>
-
-          <hr
-            style={{
-              border: "none",
-              borderTop: "1px solid #E8E6E1",
-              margin: "3rem 0 1.5rem",
-            }}
-          />
-
-          <p
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "13px",
-              color: "#999",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
-            Available 24 Hours a Day
-          </p>
-        </div>
-      </section>
-
-      {/* ── CHAT SECTION ───────────────────────────────────── */}
-      <section
-        id="chat-section"
-        style={{
-          background: "#0A1628",
-          padding: "80px 1.5rem",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "720px",
-            margin: "0 auto",
-            textAlign: "center",
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "44px",
-              fontWeight: 400,
-              color: "#F8F6F1",
-              lineHeight: 1.2,
-              marginBottom: "0",
-            }}
-          >
-            Begin Your Search
-          </h2>
-          <p
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "16px",
-              color: "rgba(255,255,255,0.6)",
-              maxWidth: "480px",
-              margin: "12px auto 0",
-              lineHeight: 1.6,
-            }}
-          >
-            Answer a few questions and a local specialist will be in touch.
-          </p>
-
-          <div
-            style={{
-              maxWidth: "660px",
-              margin: "2.5rem auto 0",
-              background: "#fff",
-              borderRadius: "12px",
-              boxShadow: "0 25px 60px rgba(0,0,0,0.35)",
-              overflow: "hidden",
-            }}
-          >
-            <ChatWidget />
+      {/* ── HERO ───────────────────────────────────────── */}
+      <section className="hero" id="hero">
+        <div className="hero__grid-bg" />
+        <div className="hero__glow" />
+        <div className="hero__inner">
+          {/* Left */}
+          <div className="hero__left">
+            <div className="hero__badge">
+              <span className="hero__badge-pulse" />
+              Now live in 12 cities across the US
+            </div>
+            <h1 className="hero__headline">
+              Every Serious Buyer Deserves a Real Conversation
+            </h1>
+            <p className="hero__sub">
+              Intake doesn&rsquo;t just collect information — it understands it. Every visitor gets a personalized conversation. Every agent gets a brief worth reading.
+            </p>
+            <div className="hero__buttons">
+              <a href="#demo" className="btn-primary" onClick={e => smooth(e, "demo")}>
+                See It In Action
+              </a>
+              <a href="#contact" className="btn-secondary" onClick={e => smooth(e, "contact")}>
+                Book a Free Demo
+              </a>
+            </div>
+            <p className="hero__proof">Trusted by independent agents and boutique firms</p>
           </div>
 
-          <p
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "12px",
-              color: "rgba(255,255,255,0.35)",
-              marginTop: "1.25rem",
-            }}
-          >
-            Your responses are private and shared only with your assigned agent.
+          {/* Right — house animation */}
+          <div className="hero__right">
+            <HouseAnimation />
+          </div>
+        </div>
+      </section>
+
+      {/* ── STATS BAR ──────────────────────────────────── */}
+      <section className="stats">
+        <div className="stats__inner">
+          <StatItem target={2400} prefix="" suffix="+" label="Leads Qualified" />
+          <StatItem target={8} prefix="$" suffix="M+" label="In Pipeline Generated" />
+          <StatItem target={94} prefix="" suffix="%" label="Client Retention Rate" />
+          <StatItem target={11} prefix="" suffix=" Min" label="Average Response Time" />
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ───────────────────────────────── */}
+      <section className="how fade-in" id="how-it-works" ref={howRef as React.RefObject<HTMLElement>}>
+        <div className="section-header">
+          <h2 className="section-title">Built to Think. Not Just Ask.</h2>
+          <p className="section-subtitle">Most lead tools ask questions. Intake understands answers.</p>
+        </div>
+        <div className="how__cards">
+          <div className="how__card">
+            <div className="how__watermark">1</div>
+            <IconBrowser />
+            <h3 className="how__card-title">Live on your site in minutes</h3>
+            <p className="how__card-body">
+              We handle the entire setup. Drop one line of code on your site and Intake is live — customized to your brand, your market, and your clients.
+            </p>
+          </div>
+          <div className="how__card">
+            <div className="how__watermark">2</div>
+            <IconSpark />
+            <h3 className="how__card-title">It listens. Then it thinks.</h3>
+            <p className="how__card-body">
+              Intake reads between the lines. It picks up on urgency, hesitation, and intent — then asks exactly the right follow-up at exactly the right moment.
+            </p>
+          </div>
+          <div className="how__card">
+            <div className="how__watermark">3</div>
+            <IconDoc />
+            <h3 className="how__card-title">You get a brief, not a form</h3>
+            <p className="how__card-body">
+              The moment a visitor is ready, a rich summary lands in your inbox. Name, needs, timeline, financing status, and a recommended next step. Everything you need before you pick up the phone.
+            </p>
+          </div>
+        </div>
+        <p className="how__footer">Setup takes under 10 minutes. We handle everything.</p>
+      </section>
+
+      {/* ── LIVE DEMO ──────────────────────────────────── */}
+      <section className="demo fade-in" id="demo" ref={demoRef as React.RefObject<HTMLElement>}>
+        <div className="demo__inner">
+          <h2 className="demo__title">See Intake Think in Real Time</h2>
+          <p className="demo__sub">
+            This is the exact experience your leads will have. Start a conversation — no signup needed.
+          </p>
+          <div className="demo__widget-wrap">
+            <ChatWidget />
+          </div>
+          <p className="demo__note">
+            This demo is live. Your responses are processed by the same AI your clients will use.
           </p>
         </div>
       </section>
 
-      {/* ── FOOTER ─────────────────────────────────────────── */}
-      <footer
-        style={{
-          background: "#0A1628",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-          padding: "36px 1.5rem",
-          textAlign: "center",
-        }}
-      >
-        <p
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "13px",
-            color: "rgba(255,255,255,0.4)",
-            marginBottom: "0.5rem",
-          }}
-        >
-          Intake — Private client intake for real estate professionals
-        </p>
-        <p
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "12px",
-            color: "rgba(255,255,255,0.25)",
-          }}
-        >
-          &copy; 2024 Intake. All rights reserved.
-        </p>
-      </footer>
+      {/* ── TESTIMONIALS ───────────────────────────────── */}
+      <section className="testimonials fade-in" id="results" ref={testRef as React.RefObject<HTMLElement>}>
+        <div className="section-header">
+          <h2 className="section-title">What Agents Are Saying</h2>
+        </div>
+        <div className="testimonials__cards">
+          {[
+            {
+              quote: "I used to spend three hours a day calling leads that went nowhere. Now I only get on the phone with people who are actually ready to move.",
+              author: "Marcus T., Residential Agent, Chicago",
+            },
+            {
+              quote: "The briefs Intake sends are more detailed than what my assistant used to write. I know exactly who I am calling before I dial.",
+              author: "Sarah K., Buyer Specialist, Austin",
+            },
+            {
+              quote: "It feels like having the world's most prepared receptionist working around the clock. My response time went from hours to minutes.",
+              author: "David R., Listing Agent, Miami",
+            },
+          ].map((t, i) => (
+            <div className="tcard" key={i}>
+              <div className="tcard__stars">
+                {[...Array(5)].map((_, j) => <div key={j} className="tcard__star" />)}
+              </div>
+              <p className="tcard__quote">&ldquo;{t.quote}&rdquo;</p>
+              <p className="tcard__author">— {t.author}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      {/* ── Responsive styles ──────────────────────────────── */}
-      <style>{`
-        .hero-headline {
-          font-size: 68px;
-        }
-        @media (max-width: 768px) {
-          .hero-headline {
-            font-size: 40px !important;
-          }
-        }
-      `}</style>
+      {/* ── PRICING ────────────────────────────────────── */}
+      <section className="pricing fade-in" id="pricing" ref={pricingRef as React.RefObject<HTMLElement>}>
+        <div className="pricing__inner">
+          <div className="pricing__trust">
+            <h2 className="pricing__trust-title">Simple pricing because your time is valuable.</h2>
+            <p className="pricing__trust-body">
+              One setup, one monthly fee, one less thing to worry about. We offer a free 30-day trial to qualifying agencies — reach out to ask if you qualify.
+            </p>
+          </div>
+          <div className="pricing__card">
+            <p className="pricing__plan-name">Intake Pro</p>
+
+            <div className="pricing__fee-amount">$399</div>
+            <div className="pricing__fee-label">One-Time Setup Fee</div>
+            <div className="pricing__fee-note">
+              We configure everything, embed it on your site, and test it before going live — zero effort on your end.
+            </div>
+
+            <div className="pricing__divider" />
+
+            <div className="pricing__fee-amount">$99<span style={{ fontSize: "1.25rem", fontWeight: 500 }}>/mo</span></div>
+            <div className="pricing__fee-label">Monthly Service Fee</div>
+            <div className="pricing__fee-note">
+              Covers hosting, AI usage, lead briefs, email delivery, and ongoing support.
+            </div>
+
+            <div className="pricing__divider" />
+
+            <ul className="pricing__checklist">
+              {[
+                "AI concierge live on your website 24/7",
+                "Intelligent qualification on every visitor",
+                "Detailed lead brief delivered to your inbox instantly",
+                "Unlimited conversations per month",
+                "Email and SMS brief delivery",
+                "Weekly performance summary",
+                "Telegram alerts for urgent leads",
+                "Full setup handled by our team",
+                "Cancel anytime — no contracts, no commitments",
+              ].map((item, i) => (
+                <li key={i}>
+                  <CheckIcon />
+                  {item}
+                </li>
+              ))}
+            </ul>
+
+            <a href="#contact" className="pricing__cta" onClick={e => smooth(e, "contact")}>
+              Get Started
+            </a>
+            <p className="pricing__sub">
+              Questions? Book a free 15-minute call — no pressure, just answers.
+            </p>
+            <p className="pricing__fine">
+              No hidden fees. No annual lock-in. Pause or cancel anytime.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ──────────────────────────────────── */}
+      <section className="final-cta fade-in" id="contact" ref={ctaRef as React.RefObject<HTMLElement>}>
+        <h2 className="final-cta__title">Stop Chasing. Start Closing.</h2>
+        <p className="final-cta__sub">
+          Join the agents and attorneys letting Intake handle the qualifying.
+        </p>
+        <div className="final-cta__form">
+          <input
+            type="email"
+            placeholder="your@email.com"
+            className="final-cta__input"
+          />
+          <button className="btn-primary" type="button">
+            Request Demo
+          </button>
+        </div>
+        <p className="final-cta__fine">No contracts. No setup fees to try. Cancel anytime.</p>
+      </section>
+
+      {/* ── FOOTER ─────────────────────────────────────── */}
+      <footer className="footer">
+        <div className="footer__inner">
+          <div className="footer__brand">
+            <div className="footer__logo">
+              Intake AI<span className="navbar__logo-dot" />
+            </div>
+            <p className="footer__tagline">Every Lead. Qualified. Automatically.</p>
+          </div>
+          <nav className="footer__links">
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#contact" onClick={e => smooth(e, "contact")}>Contact</a>
+          </nav>
+          <div className="footer__right">
+            Built for real estate agents and law firms
+          </div>
+        </div>
+        <p className="footer__copy">&copy; 2026 Intake AI. All rights reserved.</p>
+      </footer>
     </>
   );
 }

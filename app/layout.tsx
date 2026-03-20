@@ -4,7 +4,7 @@ import "./globals.css";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
-  weight: ["400", "700", "900"],
+  weight: ["400", "700"],
   style: ["normal", "italic"],
   variable: "--font-playfair",
   display: "swap",
@@ -12,15 +12,21 @@ const playfair = Playfair_Display({
 
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+  weight: ["300", "400", "500", "600", "700"],
   variable: "--font-inter",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Intake — Private Client Intake for Real Estate",
+  title: "Intake AI — Every Lead. Qualified. Automatically.",
   description:
-    "Intake qualifies your real estate leads automatically. Every serious buyer gets a real conversation.",
+    "Intake AI is an intelligent lead concierge for real estate agents and law firms. Every visitor gets a personalized conversation. Every agent gets a brief worth reading.",
+  openGraph: {
+    title: "Intake AI — Every Lead. Qualified. Automatically.",
+    description:
+      "Intelligent lead qualification for real estate and law. Available 24/7.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -29,8 +35,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${playfair.variable} ${inter.variable} scroll-smooth`}>
-      <body className="antialiased">{children}</body>
+    <html lang="en" className={`${playfair.variable} ${inter.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }
